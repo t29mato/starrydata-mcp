@@ -76,9 +76,7 @@ def _sha256_of(path: Path) -> str:
     return digest.hexdigest()
 
 
-def download_and_verify(
-    client: httpx.Client, manifest_file: ManifestFile, dest_path: Path
-) -> None:
+def download_and_verify(client: httpx.Client, manifest_file: ManifestFile, dest_path: Path) -> None:
     """Stream `manifest_file` to `dest_path`, raising `ChecksumMismatchError`
     (and removing the partial download) if the SHA256 doesn't match."""
     url = f"{RELEASE_BASE_URL}/{manifest_file.filename}"

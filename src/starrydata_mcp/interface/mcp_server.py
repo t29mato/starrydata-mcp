@@ -80,8 +80,8 @@ def build_server(db_path: Path) -> MCPServer:
             "or research domain (thermoelectric/battery/magnetic/dielectric materials). "
             "Use this FIRST to find candidate samples before fetching their measured "
             "property curves. `composition` does a case-insensitive substring match "
-            "against the raw formula string (e.g. \"Bi2Te3\"); if you want to ignore "
-            "stoichiometry differences, pass `elements` instead (e.g. [\"Bi\",\"Te\"]) "
+            'against the raw formula string (e.g. "Bi2Te3"); if you want to ignore '
+            'stoichiometry differences, pass `elements` instead (e.g. ["Bi","Te"]) '
             "for an AND match on constituent elements. Returns lightweight summaries "
             "only (sample_uid, composition, project_names, and the list of properties "
             "measured on each sample) — no curve data points. Call get_sample_detail "
@@ -127,9 +127,7 @@ def build_server(db_path: Path) -> MCPServer:
             "guessed name to search_curves will just return zero results."
         )
     )
-    def list_properties(
-        project: str | None = None, top_n: int = 50
-    ) -> list[PropertyUsageDTO]:
+    def list_properties(project: str | None = None, top_n: int = 50) -> list[PropertyUsageDTO]:
         return list_properties_uc.execute(project=project, top_n=top_n)
 
     @server.tool(
@@ -214,8 +212,8 @@ def build_server(db_path: Path) -> MCPServer:
             "Fetch one paper's full record by its `sid` (from search_papers results): "
             "citation, and every sample and curve extracted from that paper (as "
             "lightweight summaries — no raw curve data points). Use this when you want "
-            "everything a single publication contributed to Starrydata, e.g. \"show me "
-            "all the materials and measurements from this paper.\""
+            'everything a single publication contributed to Starrydata, e.g. "show me '
+            'all the materials and measurements from this paper."'
         )
     )
     def get_paper_detail(sid: str) -> PaperDetailDTO | None:

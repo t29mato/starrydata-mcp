@@ -84,9 +84,7 @@ def _load_papers(con: duckdb.DuckDBPyConnection, papers_csv: Path) -> None:
                 row.get("created_at") or None,
             )
 
-    _executemany(
-        con, "INSERT INTO papers VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)", list(gen())
-    )
+    _executemany(con, "INSERT INTO papers VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)", list(gen()))
 
 
 def _load_samples(con: duckdb.DuckDBPyConnection, samples_csv: Path) -> None:

@@ -66,18 +66,14 @@ def test_issued_date_parts_split_into_columns(built_db: Path) -> None:
 
 def test_messy_composition_gets_no_parsed_elements(built_db: Path) -> None:
     con = duckdb.connect(str(built_db), read_only=True)
-    elements = con.execute(
-        "SELECT elements FROM samples WHERE sample_uid = '6:114'"
-    ).fetchone()[0]
+    elements = con.execute("SELECT elements FROM samples WHERE sample_uid = '6:114'").fetchone()[0]
     assert elements == []
     con.close()
 
 
 def test_clean_composition_gets_parsed_elements(built_db: Path) -> None:
     con = duckdb.connect(str(built_db), read_only=True)
-    elements = con.execute(
-        "SELECT elements FROM samples WHERE sample_uid = '6:113'"
-    ).fetchone()[0]
+    elements = con.execute("SELECT elements FROM samples WHERE sample_uid = '6:113'").fetchone()[0]
     assert elements == ["Pb", "Zn", "Te", "I"]
     con.close()
 

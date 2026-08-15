@@ -16,20 +16,52 @@ from pathlib import Path
 RAW_DIR = Path(__file__).parent / "raw"
 
 PAPERS_HEADER = [
-    "SID", "DOI", "URL", "issued", "author", "title", "container_title",
-    "container_title_short", "volume", "issue", "page", "ISSN", "publisher",
-    "project_names", "created_at",
+    "SID",
+    "DOI",
+    "URL",
+    "issued",
+    "author",
+    "title",
+    "container_title",
+    "container_title_short",
+    "volume",
+    "issue",
+    "page",
+    "ISSN",
+    "publisher",
+    "project_names",
+    "created_at",
 ]
 
 SAMPLES_HEADER = [
-    "sample_name", "sample_id", "composition", "composition_details", "SID",
-    "DOI", "created_at", "updated_at", "sample_info",
+    "sample_name",
+    "sample_id",
+    "composition",
+    "composition_details",
+    "SID",
+    "DOI",
+    "created_at",
+    "updated_at",
+    "sample_info",
 ]
 
 CURVES_HEADER = [
-    "SID", "DOI", "composition", "sample_id", "figure_id", "figure_name",
-    "prop_x", "prop_y", "unit_x", "unit_y", "x", "y", "created_at",
-    "updated_at", "project_names", "comments",
+    "SID",
+    "DOI",
+    "composition",
+    "sample_id",
+    "figure_id",
+    "figure_name",
+    "prop_x",
+    "prop_y",
+    "unit_x",
+    "unit_y",
+    "x",
+    "y",
+    "created_at",
+    "updated_at",
+    "project_names",
+    "comments",
 ]
 
 PAPERS_ROWS = [

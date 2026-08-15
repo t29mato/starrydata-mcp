@@ -41,9 +41,23 @@ CURVE_FULL_COLUMNS = (
 
 def row_to_paper(row: tuple[object, ...]) -> Paper:
     (
-        sid, doi, url, issued_year, issued_month, issued_day, authors_json,
-        title, container_title, container_title_short, volume, issue, page,
-        issn, publisher, project_names, created_at,
+        sid,
+        doi,
+        url,
+        issued_year,
+        issued_month,
+        issued_day,
+        authors_json,
+        title,
+        container_title,
+        container_title_short,
+        volume,
+        issue,
+        page,
+        issn,
+        publisher,
+        project_names,
+        created_at,
     ) = row
     authors = tuple(
         Author(given=a.get("given", ""), family=a.get("family", ""))
@@ -72,8 +86,16 @@ def row_to_paper(row: tuple[object, ...]) -> Paper:
 
 def row_to_sample(row: tuple[object, ...]) -> Sample:
     (
-        sample_uid, sid, sample_id, sample_name, composition_raw, elements,
-        composition_details, sample_info_raw, created_at, updated_at,
+        sample_uid,
+        sid,
+        sample_id,
+        sample_name,
+        composition_raw,
+        elements,
+        composition_details,
+        sample_info_raw,
+        created_at,
+        updated_at,
     ) = row
     return Sample(
         sample_uid=sample_uid,
@@ -91,8 +113,22 @@ def row_to_sample(row: tuple[object, ...]) -> Sample:
 
 def row_to_curve_summary(row: tuple[object, ...]) -> CurveSummary:
     (
-        curve_id, sid, sample_uid, doi, composition_raw, figure_id, figure_name,
-        prop_x, prop_y, unit_x, unit_y, point_count, x_min, x_max, y_min, y_max,
+        curve_id,
+        sid,
+        sample_uid,
+        doi,
+        composition_raw,
+        figure_id,
+        figure_name,
+        prop_x,
+        prop_y,
+        unit_x,
+        unit_y,
+        point_count,
+        x_min,
+        x_max,
+        y_min,
+        y_max,
         project_names,
     ) = row
     return CurveSummary(
@@ -118,8 +154,21 @@ def row_to_curve_summary(row: tuple[object, ...]) -> CurveSummary:
 
 def row_to_curve(row: tuple[object, ...]) -> Curve:
     (
-        curve_id, sid, sample_uid, doi, composition_raw, figure_id, figure_name,
-        prop_x, prop_y, unit_x, unit_y, x, y, project_names, comments,
+        curve_id,
+        sid,
+        sample_uid,
+        doi,
+        composition_raw,
+        figure_id,
+        figure_name,
+        prop_x,
+        prop_y,
+        unit_x,
+        unit_y,
+        x,
+        y,
+        project_names,
+        comments,
     ) = row
     return Curve(
         curve_id=curve_id,

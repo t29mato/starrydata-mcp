@@ -39,8 +39,7 @@ class GetPaperDetailUseCase:
             citation=format_citation(paper),
             project_names=paper.project_names,
             samples=tuple(
-                sample_to_summary_dto(s, curves_by_sample.get(s.sample_uid, []))
-                for s in samples
+                sample_to_summary_dto(s, curves_by_sample.get(s.sample_uid, [])) for s in samples
             ),
             curves=tuple(curve_summary_to_dto(c) for c in curve_summaries),
         )

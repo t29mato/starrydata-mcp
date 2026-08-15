@@ -28,8 +28,7 @@ class DuckDBCurveRepository:
 
     def list_by_sample_uid(self, sample_uid: str) -> list[CurveSummary]:
         rows = self._provider.connection.execute(
-            f"SELECT {CURVE_SUMMARY_COLUMNS} FROM curves "
-            "WHERE sample_uid = ? ORDER BY curve_id",
+            f"SELECT {CURVE_SUMMARY_COLUMNS} FROM curves WHERE sample_uid = ? ORDER BY curve_id",
             [sample_uid],
         ).fetchall()
         return [row_to_curve_summary(r) for r in rows]
@@ -69,9 +68,9 @@ class DuckDBCurveRepository:
         if elements:
             clauses.append(
                 "sample_uid IN "
-                "(SELECT sample_uid FROM samples WHERE " + " AND ".join(
-                    "list_contains(elements, ?)" for _ in elements
-                ) + ")"
+                "(SELECT sample_uid FROM samples WHERE "
+                + " AND ".join("list_contains(elements, ?)" for _ in elements)
+                + ")"
             )
             params.extend(elements)
         if x_min is not None:
@@ -87,8 +86,7 @@ class DuckDBCurveRepository:
 
         where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
         sql = (
-            f"SELECT {CURVE_SUMMARY_COLUMNS} FROM curves {where} "
-            "ORDER BY curve_id LIMIT ? OFFSET ?"
+            f"SELECT {CURVE_SUMMARY_COLUMNS} FROM curves {where} ORDER BY curve_id LIMIT ? OFFSET ?"
         )
         params.extend([limit, offset])
         rows = self._provider.connection.execute(sql, params).fetchall()

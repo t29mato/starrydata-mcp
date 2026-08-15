@@ -191,14 +191,10 @@ class FakePaperRepository:
             results = [p for p in results if p.doi == doi]
         if author:
             results = [
-                p
-                for p in results
-                if any(author.lower() in a.family.lower() for a in p.authors)
+                p for p in results if any(author.lower() in a.family.lower() for a in p.authors)
             ]
         if title_keyword:
-            results = [
-                p for p in results if p.title and title_keyword.lower() in p.title.lower()
-            ]
+            results = [p for p in results if p.title and title_keyword.lower() in p.title.lower()]
         if year_min is not None:
             results = [p for p in results if p.issued_year and p.issued_year >= year_min]
         if year_max is not None:

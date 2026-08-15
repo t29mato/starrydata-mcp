@@ -33,8 +33,15 @@ class DuckDBDatasetInfoRepository:
                 "`starrydata-mcp ingest`"
             )
         (
-            db_snapshot, generated_at, papers, figures, samples, curves,
-            license_, citation, source_url,
+            db_snapshot,
+            generated_at,
+            papers,
+            figures,
+            samples,
+            curves,
+            license_,
+            citation,
+            source_url,
         ) = row
         return DatasetInfo(
             db_snapshot=_as_utc(db_snapshot),

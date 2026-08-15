@@ -59,9 +59,7 @@ def test_download_and_verify_succeeds_on_matching_checksum(tmp_path: Path) -> No
 
 @respx.mock
 def test_download_and_verify_raises_and_cleans_up_on_mismatch(tmp_path: Path) -> None:
-    manifest_file = ManifestFile(
-        filename="all_papers.csv.gz", rows=1, bytes=5, sha256="deadbeef"
-    )
+    manifest_file = ManifestFile(filename="all_papers.csv.gz", rows=1, bytes=5, sha256="deadbeef")
     respx.get(f"{RELEASE_BASE_URL}/all_papers.csv.gz").mock(
         return_value=httpx.Response(200, content=b"not matching")
     )

@@ -81,9 +81,7 @@ async def test_list_properties_ranked(server) -> None:
 
 
 async def test_search_curves_by_property_pair(server) -> None:
-    result = await server.call_tool(
-        "search_curves", {"prop_x": "Temperature", "prop_y": "ZT"}
-    )
+    result = await server.call_tool("search_curves", {"prop_x": "Temperature", "prop_y": "ZT"})
     [curve] = result.structured_content["result"]
     assert curve["curve_id"] == 2
     assert curve["point_count"] == 2

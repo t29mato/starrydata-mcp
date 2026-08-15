@@ -86,9 +86,7 @@ def run_ingest(
         previous_snapshot = _read_state(state_path)
 
         if not force and previous_snapshot == manifest.db_snapshot and db_path.exists():
-            return IngestResult(
-                rebuilt=False, db_snapshot=manifest.db_snapshot, db_path=db_path
-            )
+            return IngestResult(rebuilt=False, db_snapshot=manifest.db_snapshot, db_path=db_path)
 
         staging_dir = cache_dir / "staging"
         if staging_dir.exists():

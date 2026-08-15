@@ -11,9 +11,7 @@ class ListPropertiesUseCase:
     def __init__(self, curve_repo: CurveRepository) -> None:
         self._curve_repo = curve_repo
 
-    def execute(
-        self, *, project: str | None = None, top_n: int = 50
-    ) -> list[PropertyUsageDTO]:
+    def execute(self, *, project: str | None = None, top_n: int = 50) -> list[PropertyUsageDTO]:
         usages = self._curve_repo.list_properties(project=project, top_n=top_n)
         return [
             PropertyUsageDTO(
