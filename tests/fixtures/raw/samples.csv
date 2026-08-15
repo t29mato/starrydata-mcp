@@ -1,0 +1,4 @@
+﻿sample_name,sample_id,composition,composition_details,SID,DOI,created_at,updated_at,sample_info
+PbTe-Zn-I sample,113,Pb1.00025Zn0.02Te1.02I0.0005,,6,10.1021/am405410e,Fri Sep 01 2017 18:19:39 GMT+0900 (Japan Standard Time),Fri Sep 01 2017 18:19:39 GMT+0900 (Japan Standard Time),"{""FabricationProcess"": {""category"": ""SolidState"", ""comment"": """"}}"
+PH1000 film,114,PH1000 with DMSO (dimethyl sulfoxide) doping agent.,Bi2Te3 ball milled powders,6,10.1021/am405410e,Wed May 29 2019 14:44:35 GMT+0900 (Japan Standard Time),Wed May 29 2019 14:44:35 GMT+0900 (Japan Standard Time),{}
+NMC cathode,1,LiNi0.8Co0.1Mn0.1O2,,42,10.1000/battery.example,Tue Jun 02 2020 09:00:00 GMT+0900 (Japan Standard Time),Tue Jun 02 2020 09:00:00 GMT+0900 (Japan Standard Time),{}
