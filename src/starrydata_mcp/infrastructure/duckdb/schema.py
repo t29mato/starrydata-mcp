@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import duckdb
 
-DDL = """
+TABLES_DDL = """
 -- NOTE: `sid` is NOT a reliable primary key in the real dataset — a small
 -- number of `sid` values are shared by two entirely unrelated papers
 -- (different DOI/title), confirmed by ingesting the live GitHub Releases
@@ -33,8 +33,9 @@ CREATE TABLE papers (
     created_at VARCHAR
 );
 
+-- No PRIMARY KEY/index here on purpose — see create_indexes() below.
 CREATE TABLE samples (
-    sample_uid VARCHAR PRIMARY KEY,
+    sample_uid VARCHAR,
     sid VARCHAR,
     sample_id VARCHAR,
     sample_name VARCHAR,
@@ -47,7 +48,7 @@ CREATE TABLE samples (
 );
 
 CREATE TABLE curves (
-    curve_id BIGINT PRIMARY KEY,
+    curve_id BIGINT,
     sid VARCHAR,
     sample_uid VARCHAR,
     doi VARCHAR,
@@ -80,14 +81,36 @@ CREATE TABLE dataset_meta (
     citation VARCHAR,
     source_url VARCHAR
 );
+"""
 
+# Bug fix (2026-08-16): indexes must be built *after* bulk loading, not
+# before. Confirmed empirically: with indexes (incl. the PRIMARY KEYs that
+# were here) in place before loading, DuckDB's cost per `executemany` chunk
+# grew catastrophically — ~46s per 5,000-row chunk into `curves` (would be
+# ~30+ minutes for the real ~234k-row table, vs. a couple of minutes when
+# building the same indexes once, after loading, on a real full ingest).
+# Incremental index/constraint maintenance during many small inserts is far
+# more expensive than one bulk index build at the end — this is standard DB
+# practice, but easy to get backwards when adding indexes to a schema you
+# also want progress-chunked inserts into. `sample_uid`/`curve_id`
+# uniqueness is guaranteed by construction in etl.py (surrogate curve_id via
+# itertools.count; sample_uid is `f"{sid}:{sample_id}"` from the source
+# data's own composite key) rather than enforced by the database, so these
+# are plain indexes for lookup speed, not PRIMARY KEY/UNIQUE constraints.
+INDEXES_DDL = """
 CREATE INDEX idx_papers_sid ON papers (sid);
+CREATE INDEX idx_samples_uid ON samples (sample_uid);
 CREATE INDEX idx_samples_sid ON samples (sid);
+CREATE INDEX idx_curves_id ON curves (curve_id);
 CREATE INDEX idx_curves_sid ON curves (sid);
 CREATE INDEX idx_curves_sample_uid ON curves (sample_uid);
 CREATE INDEX idx_curves_prop ON curves (prop_x, prop_y);
 """
 
 
-def create_schema(con: duckdb.DuckDBPyConnection) -> None:
-    con.execute(DDL)
+def create_tables(con: duckdb.DuckDBPyConnection) -> None:
+    con.execute(TABLES_DDL)
+
+
+def create_indexes(con: duckdb.DuckDBPyConnection) -> None:
+    con.execute(INDEXES_DDL)

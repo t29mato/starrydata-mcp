@@ -5,6 +5,14 @@ incremental merge — simpler and harder to get subtly wrong than diffing
 ~330MB of upstream CSV daily. The caller is responsible for building into a
 `.tmp` path and atomically renaming it into place only after `build_database`
 returns successfully (see `pipeline.py`).
+
+Bug fix (2026-08-16): rows are inserted in chunks (not one giant
+`executemany` for all ~234k curve rows), which does two things — lets
+`on_progress` report counts as it goes instead of going silent for
+minutes, and gives Ctrl+C handling a safe checkpoint between chunks (see
+`infrastructure/ingestion/interrupt.py`'s module docstring for why Ctrl+C
+handling deliberately does *not* rely on interrupting DuckDB mid-query:
+that path turned out to be flaky — sometimes hanging instead of stopping).
 """
 
 from __future__ import annotations
@@ -12,7 +20,8 @@ from __future__ import annotations
 import csv
 import itertools
 import json
-from collections.abc import Iterator
+import time
+from collections.abc import Iterable, Iterator
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -20,7 +29,7 @@ from pathlib import Path
 import duckdb
 
 from starrydata_mcp.domain.composition import parse_elements
-from starrydata_mcp.infrastructure.duckdb.schema import create_schema
+from starrydata_mcp.infrastructure.duckdb.schema import create_indexes, create_tables
 
 from .parsing import (
     parse_authors,
@@ -30,8 +39,17 @@ from .parsing import (
     parse_string_list,
     strip_crossref_quoting,
 )
+from .progress import ProgressFn, default_progress
 
 _CSV_FIELD_SIZE_LIMIT = 10 * 1024 * 1024  # curve x/y arrays can be long
+_CHUNK_SIZE = 1_000
+"""Smaller than it looks redundant with progress reporting: each chunk is
+also the granularity of Ctrl+C responsiveness (see `interrupt.py`), and
+`executemany` on the `curves` table (two `DOUBLE[]` + one `VARCHAR[]`
+column) turned out to cost several milliseconds per row — 5,000-row chunks
+meant a worst-case ~20-30s before an interrupt could be noticed. 1,000 rows
+keeps that closer to ~5s while still being a small number of progress lines
+for a ~234k-row table (~234, not ~47 — a reasonable tradeoff)."""
 
 
 @dataclass(frozen=True)
@@ -53,14 +71,34 @@ def _rows(csv_path: Path) -> Iterator[dict[str, str]]:
         yield from csv.DictReader(f)
 
 
-def _executemany(con: duckdb.DuckDBPyConnection, sql: str, rows: list[tuple[object, ...]]) -> None:
-    # DuckDB's executemany rejects an empty parameter list outright; an
-    # empty (header-only) source CSV is a legitimate — if unlikely — input.
-    if rows:
-        con.executemany(sql, rows)
+def _chunked(items: Iterable[tuple[object, ...]], size: int) -> Iterator[list[tuple[object, ...]]]:
+    chunk: list[tuple[object, ...]] = []
+    for item in items:
+        chunk.append(item)
+        if len(chunk) >= size:
+            yield chunk
+            chunk = []
+    if chunk:
+        yield chunk
 
 
-def _load_papers(con: duckdb.DuckDBPyConnection, papers_csv: Path) -> None:
+def _load_in_chunks(
+    con: duckdb.DuckDBPyConnection,
+    sql: str,
+    rows: Iterable[tuple[object, ...]],
+    *,
+    label: str,
+    on_progress: ProgressFn,
+) -> int:
+    total = 0
+    for chunk in _chunked(rows, _CHUNK_SIZE):
+        con.executemany(sql, chunk)
+        total += len(chunk)
+        on_progress(f"  {label}: {total:,} rows loaded")
+    return total
+
+
+def _load_papers(con: duckdb.DuckDBPyConnection, papers_csv: Path, on_progress: ProgressFn) -> int:
     def gen() -> Iterator[tuple[object, ...]]:
         for row in _rows(papers_csv):
             year, month, day = parse_issued_date(row.get("issued"))
@@ -84,10 +122,18 @@ def _load_papers(con: duckdb.DuckDBPyConnection, papers_csv: Path) -> None:
                 row.get("created_at") or None,
             )
 
-    _executemany(con, "INSERT INTO papers VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)", list(gen()))
+    return _load_in_chunks(
+        con,
+        "INSERT INTO papers VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+        gen(),
+        label="papers",
+        on_progress=on_progress,
+    )
 
 
-def _load_samples(con: duckdb.DuckDBPyConnection, samples_csv: Path) -> None:
+def _load_samples(
+    con: duckdb.DuckDBPyConnection, samples_csv: Path, on_progress: ProgressFn
+) -> int:
     def gen() -> Iterator[tuple[object, ...]]:
         for row in _rows(samples_csv):
             sid = row["SID"]
@@ -106,10 +152,16 @@ def _load_samples(con: duckdb.DuckDBPyConnection, samples_csv: Path) -> None:
                 row.get("updated_at") or None,
             )
 
-    _executemany(con, "INSERT INTO samples VALUES (?,?,?,?,?,?,?,?,?,?)", list(gen()))
+    return _load_in_chunks(
+        con,
+        "INSERT INTO samples VALUES (?,?,?,?,?,?,?,?,?,?)",
+        gen(),
+        label="samples",
+        on_progress=on_progress,
+    )
 
 
-def _load_curves(con: duckdb.DuckDBPyConnection, curves_csv: Path) -> None:
+def _load_curves(con: duckdb.DuckDBPyConnection, curves_csv: Path, on_progress: ProgressFn) -> int:
     counter = itertools.count(1)
 
     def gen() -> Iterator[tuple[object, ...]]:
@@ -139,10 +191,12 @@ def _load_curves(con: duckdb.DuckDBPyConnection, curves_csv: Path) -> None:
                 max(ys) if ys else None,
             )
 
-    _executemany(
+    return _load_in_chunks(
         con,
         "INSERT INTO curves VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
-        list(gen()),
+        gen(),
+        label="curves",
+        on_progress=on_progress,
     )
 
 
@@ -170,6 +224,7 @@ def build_database(
     curves_csv: Path,
     meta: DatasetMetaInput,
     dest_path: Path,
+    on_progress: ProgressFn = default_progress,
 ) -> None:
     """Build a brand-new DuckDB file at `dest_path` from the three raw CSVs.
 
@@ -183,10 +238,24 @@ def build_database(
         )
     con = duckdb.connect(str(dest_path))
     try:
-        create_schema(con)
-        _load_papers(con, papers_csv)
-        _load_samples(con, samples_csv)
-        _load_curves(con, curves_csv)
+        create_tables(con)
+        for label, loader, csv_path in (
+            ("papers", _load_papers, papers_csv),
+            ("samples", _load_samples, samples_csv),
+            ("curves", _load_curves, curves_csv),
+        ):
+            on_progress(f"Loading {label}...")
+            started = time.monotonic()
+            count = loader(con, csv_path, on_progress)
+            on_progress(f"Loaded {count:,} {label} in {time.monotonic() - started:.1f}s")
+
+        # Indexes are built once, after all data is loaded — see schema.py's
+        # comment on INDEXES_DDL for why this order matters a lot.
+        on_progress("Building indexes...")
+        started = time.monotonic()
+        create_indexes(con)
+        on_progress(f"Indexes built in {time.monotonic() - started:.1f}s")
+
         _load_meta(con, meta)
     finally:
         con.close()

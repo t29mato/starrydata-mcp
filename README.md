@@ -15,7 +15,14 @@ pip install starrydata-mcp   # not yet published to PyPI
 ## Quick start
 
 ```bash
-# Step 1: Download the latest public dataset snapshot and build local DuckDB
+# Step 1: Download the latest public dataset snapshot and build local DuckDB.
+# The ~57 MB download itself is quick; loading the ~400k rows is the slow
+# part, so a full run typically takes 15-30 minutes. It prints progress as
+# it goes (which file it's downloading, how many rows loaded so far), and
+# Ctrl+C is safe at any point: partial files are cleaned up automatically,
+# and the live database (if you already have one from a previous run) is
+# never touched until the new build finishes — it's swapped in atomically
+# at the very end.
 starrydata-mcp ingest
 
 # Step 2: Start the MCP server

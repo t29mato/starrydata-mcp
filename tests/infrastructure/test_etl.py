@@ -89,6 +89,74 @@ def test_curve_ids_are_surrogate_and_stats_are_materialized(built_db: Path) -> N
     con.close()
 
 
+def test_on_progress_reports_each_stage_and_final_row_counts(tmp_path: Path) -> None:
+    dest = tmp_path / "starrydata.duckdb"
+    messages: list[str] = []
+    build_database(
+        papers_csv=FIXTURES / "papers.csv",
+        samples_csv=FIXTURES / "samples.csv",
+        curves_csv=FIXTURES / "curves.csv",
+        meta=DatasetMetaInput(
+            db_snapshot=None,
+            generated_at=datetime(2026, 8, 15, tzinfo=UTC),
+            papers=2,
+            figures=3,
+            samples=3,
+            curves=3,
+            license="CC BY 4.0",
+            citation="",
+            source_url="",
+        ),
+        dest_path=dest,
+        on_progress=messages.append,
+    )
+    joined = "\n".join(messages)
+    assert "Loading papers..." in joined
+    assert "papers: 2 rows loaded" in joined
+    assert "Loaded 2 papers" in joined
+    assert "Loading curves..." in joined
+    assert "Loaded 3 curves" in joined
+
+
+def test_large_table_is_inserted_in_chunks_not_one_call(tmp_path: Path, monkeypatch) -> None:
+    """Regression test (2026-08-16): a single giant `executemany` call for
+    all curve rows made Ctrl+C effectively uninterruptible and gave no
+    progress feedback. Loading must go through `executemany` multiple times
+    for a table bigger than one chunk.
+    """
+    from starrydata_mcp.infrastructure.ingestion import etl as etl_module
+
+    monkeypatch.setattr(etl_module, "_CHUNK_SIZE", 1)  # force many tiny chunks
+
+    dest = tmp_path / "starrydata.duckdb"
+    messages: list[str] = []
+    build_database(
+        papers_csv=FIXTURES / "papers.csv",
+        samples_csv=FIXTURES / "samples.csv",
+        curves_csv=FIXTURES / "curves.csv",
+        meta=DatasetMetaInput(
+            db_snapshot=None,
+            generated_at=datetime(2026, 8, 15, tzinfo=UTC),
+            papers=2,
+            figures=3,
+            samples=3,
+            curves=3,
+            license="CC BY 4.0",
+            citation="",
+            source_url="",
+        ),
+        dest_path=dest,
+        on_progress=messages.append,
+    )
+    # 3 curve rows with chunk size 1 -> 3 separate progress messages, one per row.
+    curve_progress = [m for m in messages if m.startswith("  curves:")]
+    assert curve_progress == [
+        "  curves: 1 rows loaded",
+        "  curves: 2 rows loaded",
+        "  curves: 3 rows loaded",
+    ]
+
+
 def test_build_refuses_to_overwrite_existing_file(built_db: Path) -> None:
     with pytest.raises(FileExistsError):
         build_database(

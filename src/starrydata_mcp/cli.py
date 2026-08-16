@@ -13,7 +13,9 @@ import sys
 import typer
 
 from . import config
-from .infrastructure.ingestion.pipeline import run_ingest
+from .infrastructure.ingestion.downloader import ChecksumMismatchError
+from .infrastructure.ingestion.interrupt import cooperative_sigint
+from .infrastructure.ingestion.pipeline import IngestAlreadyRunningError, run_ingest
 
 app = typer.Typer(add_completion=False, no_args_is_help=True)
 
@@ -23,7 +25,47 @@ def ingest(
     force: bool = typer.Option(False, help="Rebuild even if the snapshot is unchanged."),
 ) -> None:
     """Download the latest public Starrydata snapshot and (re)build the local DuckDB file."""
-    result = run_ingest(cache_dir=config.cache_dir(), db_path=config.db_path(), force=force)
+
+    def announce_interrupt() -> None:
+        typer.echo(
+            "\nStopping as soon as it's safe to (after the current step)... "
+            "press Ctrl+C again to quit immediately.",
+            err=True,
+        )
+
+    try:
+        with cooperative_sigint(on_first_press=announce_interrupt) as raise_if_interrupted:
+
+            def on_progress(message: str) -> None:
+                typer.echo(message)
+                raise_if_interrupted()
+
+            result = run_ingest(
+                cache_dir=config.cache_dir(),
+                db_path=config.db_path(),
+                force=force,
+                on_progress=on_progress,
+            )
+    except KeyboardInterrupt:
+        # run_ingest already cleaned up any partial .tmp/.wal/staging files
+        # before this propagates (see pipeline.py) — safe to just re-run.
+        typer.echo(
+            "\nInterrupted — partial files were cleaned up. "
+            "Safe to run `starrydata-mcp ingest` again.",
+            err=True,
+        )
+        raise typer.Exit(code=130) from None
+    except IngestAlreadyRunningError as exc:
+        typer.echo(f"Error: {exc}", err=True)
+        raise typer.Exit(code=1) from None
+    except ChecksumMismatchError as exc:
+        typer.echo(
+            f"Error: download verification failed ({exc}). This usually means a "
+            "network glitch mid-download — just try again.",
+            err=True,
+        )
+        raise typer.Exit(code=1) from None
+
     if result.rebuilt:
         typer.echo(f"Rebuilt {result.db_path} from snapshot {result.db_snapshot}")
     else:

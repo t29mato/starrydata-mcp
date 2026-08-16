@@ -11,11 +11,14 @@ from __future__ import annotations
 import gzip
 import hashlib
 import shutil
+import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 import httpx
+
+from .progress import ProgressFn, default_progress
 
 MANIFEST_URL = "https://starrydata.github.io/starrydata_datasets/manifest.json"
 RELEASE_BASE_URL = "https://github.com/starrydata/starrydata_datasets/releases/latest/download"
@@ -76,16 +79,25 @@ def _sha256_of(path: Path) -> str:
     return digest.hexdigest()
 
 
-def download_and_verify(client: httpx.Client, manifest_file: ManifestFile, dest_path: Path) -> None:
+def download_and_verify(
+    client: httpx.Client,
+    manifest_file: ManifestFile,
+    dest_path: Path,
+    on_progress: ProgressFn = default_progress,
+) -> None:
     """Stream `manifest_file` to `dest_path`, raising `ChecksumMismatchError`
     (and removing the partial download) if the SHA256 doesn't match."""
     url = f"{RELEASE_BASE_URL}/{manifest_file.filename}"
     dest_path.parent.mkdir(parents=True, exist_ok=True)
+    size_mb = manifest_file.bytes / 1_000_000
+    on_progress(f"Downloading {manifest_file.filename} ({size_mb:.1f} MB)...")
+    started = time.monotonic()
     with client.stream("GET", url, timeout=120, follow_redirects=True) as response:
         response.raise_for_status()
         with dest_path.open("wb") as f:
             for chunk in response.iter_bytes():
                 f.write(chunk)
+    on_progress(f"  downloaded {manifest_file.filename} in {time.monotonic() - started:.1f}s")
 
     actual = _sha256_of(dest_path)
     if actual != manifest_file.sha256:
@@ -99,7 +111,10 @@ def gunzip(src_path: Path, dest_path: Path) -> None:
 
 
 def download_all_data(
-    client: httpx.Client, manifest: Manifest, staging_dir: Path
+    client: httpx.Client,
+    manifest: Manifest,
+    staging_dir: Path,
+    on_progress: ProgressFn = default_progress,
 ) -> dict[str, Path]:
     """Downloads+verifies+decompresses the three `all_*.csv.gz` files.
 
@@ -110,7 +125,7 @@ def download_all_data(
     for kind in _ALL_DATA_FILES:
         manifest_file = manifest.all_data[kind]
         gz_path = staging_dir / manifest_file.filename
-        download_and_verify(client, manifest_file, gz_path)
+        download_and_verify(client, manifest_file, gz_path, on_progress=on_progress)
         csv_path = staging_dir / f"{kind}.csv"
         gunzip(gz_path, csv_path)
         gz_path.unlink()
