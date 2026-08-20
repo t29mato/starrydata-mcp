@@ -73,3 +73,18 @@ def test_missing_optional_fields_degrade_gracefully() -> None:
 def test_missing_doi_omits_doi_url() -> None:
     text = format_citation(_paper(doi=None, url=None))
     assert "doi.org" not in text
+
+
+def test_author_with_only_given_name_uses_given_name_alone() -> None:
+    # Realistic: infrastructure/ingestion/parsing.py's parse_authors() coerces
+    # a missing given/family field to "" independently, so real data can have
+    # one without the other.
+    text = format_citation(_paper(authors=(Author(given="Cher", family=""),)))
+    assert "Cher" in text
+    assert "None" not in text
+
+
+def test_author_with_only_family_name_uses_family_name_alone() -> None:
+    text = format_citation(_paper(authors=(Author(given="", family="Madonna"),)))
+    assert "Madonna" in text
+    assert "None" not in text

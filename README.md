@@ -81,4 +81,4 @@ For more details on the dataset's license and attribution requirements, see [`do
 
 ## Contributing
 
-See [`CLAUDE.md`](./CLAUDE.md) for project governance and development policies.
+See [`AGENTS.md`](./AGENTS.md) for build/test/lint commands and architecture rules (any coding agent), or [`CLAUDE.md`](./CLAUDE.md) for this repository's specific workflow.

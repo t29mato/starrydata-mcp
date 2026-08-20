@@ -1,0 +1,34 @@
+# starrydata-mcp
+
+> An MCP server that lets AI agents search and retrieve digitized materials-science data (papers, samples, and measured property curves — thermoelectric, battery, magnetic, dielectric materials) from [Starrydata2](https://starrydata.nims.go.jp/)'s publicly distributed dataset (CC BY 4.0), via a local DuckDB replica refreshed daily from public snapshots — no connection to Starrydata's production database or API.
+
+Status: pre-release, under active development.
+
+## Start here
+
+- [README](README.md): install, quick start, the 8 MCP tools, data source and license
+- [Technical overview (Japanese)](docs/TECHNICAL_OVERVIEW.md): full architecture, design rationale, real bugs found and fixed, test strategy
+- [Architecture design doc](docs/design/architecture.md): original design — dataset investigation, DuckDB schema, MCP tool spec, clean-architecture layering
+
+## Using it
+
+```sh
+starrydata-mcp ingest   # download the latest public dataset snapshot and build the local DuckDB file (15-30 min on a full run)
+starrydata-mcp serve    # start the MCP server (stdio)
+```
+
+Register `starrydata-mcp serve` as an MCP server in an agent's config (Claude Desktop, Claude Code, etc.).
+
+## Tools
+
+Eight MCP tools follow a search → narrow → fetch pattern (lightweight summaries first, full data points only on request): `search_materials`, `get_sample_detail`, `list_properties`, `search_curves`, `get_curve_data`, `search_papers`, `get_paper_detail`, `get_dataset_info`. Full parameter reference in the README.
+
+## License
+
+Code: MIT. Data served: CC BY 4.0 — see the README's "Data citation" section for the citation required when using the data.
+
+## Optional
+
+- [Release notes draft](docs/RELEASE_NOTES_DRAFT.md)
+- [CLAUDE.md](CLAUDE.md): internal worker/contribution instructions for this repo (see AGENTS.md for the general-purpose equivalent)
+- [AGENTS.md](AGENTS.md): how to build, test, and contribute to this codebase

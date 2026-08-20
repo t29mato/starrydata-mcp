@@ -65,6 +65,13 @@ def test_parse_float_list_missing_or_malformed() -> None:
     assert parse_float_list("not json") == []
 
 
+def test_parse_float_list_valid_json_but_not_a_list() -> None:
+    # Valid JSON (parses cleanly) but the wrong shape — a bare number, not
+    # an array — must degrade to [] like any other malformed input.
+    assert parse_float_list("42") == []
+    assert parse_float_list('{"a": 1}') == []
+
+
 def test_strip_crossref_quoting_unwraps_double_quoted_title() -> None:
     raw = '"Decoupling Interrelated Parameters"'
     assert strip_crossref_quoting(raw) == "Decoupling Interrelated Parameters"
@@ -72,6 +79,14 @@ def test_strip_crossref_quoting_unwraps_double_quoted_title() -> None:
 
 def test_strip_crossref_quoting_leaves_plain_text_alone() -> None:
     assert strip_crossref_quoting("Plain Title") == "Plain Title"
+
+
+def test_strip_crossref_quoting_invalid_json_inside_quotes_returns_raw() -> None:
+    # Starts and ends with a quote character (so the fast-path check
+    # triggers) but isn't valid JSON once parsed — must fall back to the
+    # original string rather than raise.
+    raw = '"a"b"'
+    assert strip_crossref_quoting(raw) == raw
 
 
 def test_strip_crossref_quoting_handles_none() -> None:

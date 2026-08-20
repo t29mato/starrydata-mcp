@@ -6,6 +6,21 @@ why the composition/element-based filters need real coverage.
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
+from pathlib import Path
+
+import duckdb
+import pytest
+
+from starrydata_mcp.infrastructure.duckdb.connection import DuckDBConnectionProvider
+from starrydata_mcp.infrastructure.duckdb.dataset_info_repository import (
+    DuckDBDatasetInfoRepository,
+)
+from starrydata_mcp.infrastructure.duckdb.schema import create_tables
+from starrydata_mcp.infrastructure.ingestion.etl import DatasetMetaInput, build_database
+
+FIXTURES = Path(__file__).parent.parent / "fixtures" / "raw"
+
 
 def test_paper_get_by_sid(duckdb_paper_repo) -> None:
     paper = duckdb_paper_repo.get_by_sid("6")
@@ -38,6 +53,11 @@ def test_paper_search_by_title_keyword(duckdb_paper_repo) -> None:
 def test_paper_search_by_year_range(duckdb_paper_repo) -> None:
     results = duckdb_paper_repo.search(year_min=2018)
     assert [p.sid for p in results] == ["42"]
+
+
+def test_paper_search_by_year_max(duckdb_paper_repo) -> None:
+    results = duckdb_paper_repo.search(year_max=2018)
+    assert [p.sid for p in results] == ["6"]
 
 
 def test_paper_search_by_project(duckdb_paper_repo) -> None:
@@ -84,6 +104,11 @@ def test_curve_get_by_ids_skips_unknown(duckdb_curve_repo) -> None:
     assert [c.curve_id for c in curves] == [1]
 
 
+def test_curve_get_by_ids_empty_request_short_circuits(duckdb_curve_repo) -> None:
+    # No SQL round-trip for an empty request — just an early return.
+    assert duckdb_curve_repo.get_by_ids(()) == []
+
+
 def test_curve_list_by_sample_uid(duckdb_curve_repo) -> None:
     summaries = duckdb_curve_repo.list_by_sample_uid("6:113")
     assert {s.curve_id for s in summaries} == {1, 2}
@@ -99,6 +124,11 @@ def test_curve_search_by_property_pair(duckdb_curve_repo) -> None:
 def test_curve_search_by_x_range_overlap(duckdb_curve_repo) -> None:
     results = duckdb_curve_repo.search(prop_x="Temperature", x_min=500, x_max=700)
     assert [r.curve_id for r in results] == [2]
+
+
+def test_curve_search_by_composition_substring(duckdb_curve_repo) -> None:
+    results = duckdb_curve_repo.search(composition="Pb1.00025")
+    assert [r.curve_id for r in results] == [1, 2]
 
 
 def test_curve_search_by_elements(duckdb_curve_repo) -> None:
@@ -127,3 +157,50 @@ def test_dataset_info_reads_meta_row(duckdb_dataset_info_repo) -> None:
     assert info.license == "CC BY 4.0"
     assert info.totals.papers == 2
     assert info.totals.curves == 3
+
+
+def test_dataset_info_null_db_snapshot_stays_none(tmp_path: Path) -> None:
+    # Realistic: pipeline.py's _parse_db_snapshot() returns None when the
+    # upstream manifest's snapshot string doesn't parse, and that None is
+    # written straight through to the TIMESTAMP column.
+    dest = tmp_path / "starrydata.duckdb"
+    build_database(
+        papers_csv=FIXTURES / "papers.csv",
+        samples_csv=FIXTURES / "samples.csv",
+        curves_csv=FIXTURES / "curves.csv",
+        meta=DatasetMetaInput(
+            db_snapshot=None,
+            generated_at=datetime(2026, 8, 15, tzinfo=UTC),
+            papers=2,
+            figures=3,
+            samples=3,
+            curves=3,
+            license="CC BY 4.0",
+            citation="",
+            source_url="",
+        ),
+        dest_path=dest,
+    )
+    provider = DuckDBConnectionProvider(dest)
+    repo = DuckDBDatasetInfoRepository(provider)
+    info = repo.get_info()
+    assert info.db_snapshot is None
+    assert info.generated_at is not None
+    provider.close()
+
+
+def test_dataset_info_raises_on_empty_meta_table(tmp_path: Path) -> None:
+    # A DuckDB file with the right tables but no dataset_meta row (e.g. one
+    # not built by `starrydata-mcp ingest`) must fail loudly, not silently.
+    dest = tmp_path / "empty.duckdb"
+    con = duckdb.connect(str(dest))
+    create_tables(con)
+    con.close()
+
+    provider = DuckDBConnectionProvider(dest)
+    repo = DuckDBDatasetInfoRepository(provider)
+    try:
+        with pytest.raises(RuntimeError, match="dataset_meta is empty"):
+            repo.get_info()
+    finally:
+        provider.close()

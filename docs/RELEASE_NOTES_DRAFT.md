@@ -33,7 +33,8 @@
 - Both are covered by regression tests (`tests/infrastructure/test_duplicate_sid.py`).
 
 **Quality & Testing**
-- 127 tests, 98% overall coverage (domain/application layers effectively 100%)
+- 163 tests, 100% coverage (see "Quality follow-up" below for how the last
+  couple of percentage points were closed)
 - Domain layer: pure functions only (composition parser, citation formatter), zero external dependencies, tested without any I/O
 - Application layer: use cases tested against in-memory fake repositories
 - Infrastructure: integration tests against a DuckDB file built from real-shaped fixture CSVs, plus a full run against the live production dataset
@@ -74,6 +75,35 @@
   is 15-30 minutes (loading ~400k rows through `executemany` dominates —
   the ~57 MB download itself is quick), not the "5-10 minutes" originally
   guessed before this was actually measured against the live dataset.
+
+**Quality follow-up (while Issue #15's publish decision is pending, 2026-08-21)**
+- Closed the remaining coverage gap (98% -> 100%): added real regression
+  tests for edge cases that were previously only implicit — the hot-swap
+  path in `DuckDBConnectionProvider` (picking up a new DB file without a
+  restart), `get_dataset_info` against a null `db_snapshot` and against a
+  DB with no `dataset_meta` row at all, the cooperative-SIGINT second-press
+  force-quit escape hatch, a couple of citation-formatting edge cases
+  (author with only a given or only a family name), and the CLI's
+  `__main__` entrypoint (via a real subprocess). Two lines of genuinely
+  trivial entrypoint boilerplate (`def main(): app()` and the
+  `if __name__ == "__main__"` guard) are `# pragma: no cover` with a
+  comment explaining why, rather than force-tested.
+- LLMO assets audited and filled in: `llms.txt` (repo root, for any LLM/
+  agent trying to understand the project), `AGENTS.md` (generic
+  build/test/lint/architecture-rules guide for any coding agent, alongside
+  the Claude-specific `CLAUDE.md`), and a Claude Code project skill at
+  `.claude/skills/starrydata-mcp/SKILL.md` teaching effective use of the 8
+  MCP tools (search -> narrow -> fetch, when to call `list_properties`
+  first, etc.). README's opening one-liner was already present.
+- Long-running-operation concerns written up in
+  `docs/OPERATIONAL_CONCERNS.md`: disk usage doesn't grow unboundedly
+  (fixed-path files, guaranteed cleanup), but a full ingest run temporarily
+  needs ~500-550MB on top of the live DB's own footprint; and upstream CSV
+  schema changes are handled inconsistently — optional fields degrade
+  silently to empty, but required fields (`SID`, `sample_id`) and
+  `manifest.json`'s keys raise a raw `KeyError` (safely — nothing gets
+  corrupted — but with an unhelpful message). Neither is an active bug;
+  both are recorded as follow-up candidates.
 
 **Known Limitations & Future Work**
 - Composition parsing is best-effort (many samples have free-text descriptions; failures fall back to raw substring search)

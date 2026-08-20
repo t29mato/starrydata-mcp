@@ -54,3 +54,21 @@ def test_previous_handler_is_restored_on_exit() -> None:
 
 def test_interrupt_requested_is_a_keyboard_interrupt_subclass() -> None:
     assert issubclass(InterruptRequested, KeyboardInterrupt)
+
+
+def test_second_press_resets_handler_and_force_quits(monkeypatch: pytest.MonkeyPatch) -> None:
+    # The escape hatch (a second Ctrl+C) resets SIGINT to the OS default and
+    # re-raises — which would actually kill this test process, so
+    # signal.raise_signal is mocked to observe the call instead of letting
+    # it happen for real. Invoking the installed handler directly (rather
+    # than via a real signal) keeps this deterministic and fast; the real
+    # end-to-end path is covered by test_sigint_regression.py.
+    raised: list[int] = []
+    monkeypatch.setattr(signal, "raise_signal", raised.append)
+
+    with cooperative_sigint():
+        handler = signal.getsignal(signal.SIGINT)
+        handler(signal.SIGINT, None)  # first press: sets the flag
+        handler(signal.SIGINT, None)  # second press: escape hatch
+        assert raised == [signal.SIGINT]
+        assert signal.getsignal(signal.SIGINT) is signal.SIG_DFL

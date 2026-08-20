@@ -17,6 +17,7 @@ from starrydata_mcp.infrastructure.ingestion.downloader import MANIFEST_URL, REL
 from starrydata_mcp.infrastructure.ingestion.pipeline import (
     IngestAlreadyRunningError,
     _parse_db_snapshot,
+    _read_state,
     run_ingest,
 )
 
@@ -110,6 +111,22 @@ def test_parse_db_snapshot_converts_jst_to_utc() -> None:
 
 def test_parse_db_snapshot_unparseable_returns_none() -> None:
     assert _parse_db_snapshot("garbage") is None
+
+
+def test_parse_db_snapshot_right_suffix_but_bad_date_returns_none() -> None:
+    # Has the expected "UTC+0900 (JST)" suffix (passes the fast check) but
+    # the date portion in front of it doesn't match strptime's format.
+    assert _parse_db_snapshot("not-a-date UTC+0900 (JST)") is None
+
+
+def test_read_state_missing_file_returns_none(tmp_path: Path) -> None:
+    assert _read_state(tmp_path / "does-not-exist.json") is None
+
+
+def test_read_state_corrupted_json_returns_none(tmp_path: Path) -> None:
+    state_path = tmp_path / "state.json"
+    state_path.write_text("{not valid json")
+    assert _read_state(state_path) is None
 
 
 # --- 2026-08-16 bug fix regression tests -----------------------------------

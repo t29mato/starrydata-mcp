@@ -141,12 +141,18 @@ def _run_once(tmp_path: Path, run_index: int) -> tuple[str, str]:
         time.sleep(0.4)
         os.killpg(proc.pid, signal.SIGINT)
         try:
-            stdout, stderr = proc.communicate(timeout=10)
+            # 25s, not ~5s (chunk size 1,000 * ~5ms/row): on a loaded CI/dev
+            # machine the first executemany call (one-time query-plan
+            # compilation on top of the per-row cost) has been observed to
+            # take noticeably longer than later chunks. This margin is
+            # about ruling out an indefinite hang, not measuring latency —
+            # keep it generous rather than chase machine-dependent timing.
+            stdout, stderr = proc.communicate(timeout=25)
         except subprocess.TimeoutExpired:
             os.killpg(proc.pid, signal.SIGKILL)
             stdout, stderr = proc.communicate()
             raise AssertionError(
-                f"run {run_index}: build_database did not stop within 10s of "
+                f"run {run_index}: build_database did not stop within 25s of "
                 f"SIGINT — this is exactly the reported hang.\nstdout:\n{stdout}"
                 f"\nstderr:\n{stderr}"
             ) from None

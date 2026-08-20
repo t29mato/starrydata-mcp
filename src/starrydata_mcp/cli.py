@@ -91,9 +91,15 @@ def serve() -> None:
     build_server(config.db_path()).run("stdio")
 
 
-def main() -> None:
+def main() -> None:  # pragma: no cover
     app()
 
 
-if __name__ == "__main__":
+if __name__ == "__main__":  # pragma: no cover
+    # Trivial entrypoint boilerplate: only runs under `python -m
+    # starrydata_mcp.cli`, never under a plain pytest import, so
+    # coverage.py can't see it execute in-process. Exercised (functionally,
+    # if not coverage-tracked) by
+    # test_cli.py::test_running_as_main_module_invokes_the_typer_app, which
+    # spawns it as a real subprocess.
     sys.exit(main())
