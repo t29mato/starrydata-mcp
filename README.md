@@ -44,6 +44,36 @@ Register `starrydata-mcp serve` as an MCP server in your agent's config (e.g., C
 
 The server will serve stdio by default. See [`docs/design/architecture.md#2-日次取得--ローカルdb変換パイプライン`](docs/design/architecture.md) for details on how data ingestion works and how to set up a daily refresh schedule.
 
+To self-host over HTTP instead of stdio (e.g. behind your own reverse proxy), use `starrydata-mcp serve --http :7860` — see [`docs/deploy/huggingface-spaces.md`](docs/deploy/huggingface-spaces.md) for a ready-to-use `Dockerfile` and deployment walkthrough (Hugging Face Spaces' free tier).
+
+## Connecting to a remote server (no local setup)
+
+Running `ingest` locally (15-30 minutes, ~190 MB) is a real barrier for a
+researcher who just wants to ask a question. A hosted, read-only instance
+removes that: connect an MCP client straight to it over HTTP, no install
+required.
+
+> **Status**: the hosted instance isn't live yet — deployment is a separate,
+> explicit step (see [`docs/deploy/huggingface-spaces.md`](docs/deploy/huggingface-spaces.md)).
+> Once it is, replace `<space-url>` below with the real URL.
+
+**Claude Code:**
+
+```sh
+claude mcp add --transport http starrydata https://<space-url>/mcp
+```
+
+**claude.ai (web) — Settings → Connectors → Add custom connector:**
+
+Enter `https://<space-url>/mcp` as the remote MCP server URL and confirm.
+(Anthropic's UI wording for this may shift over time; look for "Connectors"
+or "Integrations" under Settings if it's moved.)
+
+The remote server is **read-only** and rate-limited per client — see its
+`/health` endpoint for the current data snapshot date, and
+[Data source](#data-source) below for the license/citation, which apply
+identically whether you run it yourself or use a hosted instance.
+
 ## Tools
 
 The server exposes 8 tools, following a **search → narrow → fetch** three-tier pattern to keep AI agent context small:

@@ -105,6 +105,43 @@
   corrupted — but with an unhelpful message). Neither is an active bug;
   both are recorded as follow-up candidates.
 
+**Remote MCP server support (owner request via HQ, 2026-08-25)**
+- `starrydata-mcp serve --http :7860` starts the same 8 tools over
+  streamable-HTTP instead of stdio (stdio remains the default — nothing
+  changes for existing local/Claude Desktop/Code users). Address syntax:
+  `--http :7860` (all interfaces), `--http 127.0.0.1:9000`, or a bare port.
+- `/health` endpoint reports whether the local DuckDB is actually queryable
+  (not just "the process is up") — 200 with snapshot date/totals/staleness,
+  or 503 if `dataset_meta` is missing/empty.
+- Simple per-IP rate limiting (`infrastructure`-free, plain ASGI middleware
+  — deliberately not Starlette's `BaseHTTPMiddleware`, which buffers whole
+  responses and fights streamable-HTTP's chunked responses), default 60
+  requests/60s/IP, tunable via `STARRYDATA_MCP_RATE_LIMIT_MAX` /
+  `STARRYDATA_MCP_RATE_LIMIT_WINDOW_SECONDS`. Not meant to stop a
+  determined abuser — just to keep one client from accidentally exhausting
+  a free-tier deployment.
+- Server instructions (shown to any connecting agent) now explicitly state
+  the server is read-only and that a public deployment may be rate-limited.
+- `Dockerfile` + `.dockerignore` for Hugging Face Spaces (Docker SDK):
+  bakes a fresh `ingest` into the image at *build* time (non-root user,
+  port 7860) so the container answers `/health` immediately on boot
+  instead of spending 15-30 minutes ingesting before serving a single
+  request. Deployment itself (creating the Space, pushing the image) is
+  intentionally not done by this change — see
+  `docs/deploy/huggingface-spaces.md` for the handoff procedure to the
+  owner, including the "rebuild to refresh the snapshot" operational note
+  (this image does not self-refresh; see the Known Limitations below).
+- README: "Connecting to a remote server" section with the exact
+  `claude mcp add --transport http` command and claude.ai Connectors steps
+  (placeholder URL — filled in once actually deployed).
+- Verified for real, not just unit-tested: `scripts/verify_http_server.py`
+  starts the real HTTP server as a subprocess against the real ~193MB
+  production DuckDB, connects with the real `mcp.client.Client` (streamable-
+  HTTP), and calls all 8 tools — all passed. A fixture-DB equivalent
+  (`tests/interface/test_http_server_e2e.py`) runs the same real-subprocess/
+  real-client pattern in CI. 181 tests total (was 163), 100% coverage
+  maintained.
+
 **Known Limitations & Future Work**
 - Composition parsing is best-effort (many samples have free-text descriptions; failures fall back to raw substring search)
 - `sample_info` metadata is unstructured JSON with inconsistent key naming (expected from raw form inputs); whitelist approach applied with raw JSON fallback
@@ -116,11 +153,16 @@
   approach also does per-row Python transforms (JSON parsing, composition
   parsing, computed columns) that a native-COPY approach would need to do
   in SQL instead — a bigger change than this bug-fix pass, worth a follow-up.
+- The HF Spaces `Dockerfile` bakes in a snapshot at build time and does not
+  refresh itself — picking up a new daily snapshot means rebuilding the
+  Space (manually or on a schedule the owner sets up outside this repo).
+  Not automated here; see `docs/deploy/huggingface-spaces.md` §6.
 
 **Installation & Usage**
 ```bash
-starrydata-mcp ingest  # Build/update local DuckDB from latest public snapshot
-starrydata-mcp serve   # Start MCP server (stdio)
+starrydata-mcp ingest              # Build/update local DuckDB from latest public snapshot
+starrydata-mcp serve                # Start MCP server (stdio, for local clients)
+starrydata-mcp serve --http :7860  # ...or streamable-HTTP, for a self-hosted/remote deployment
 ```
 
 Register in MCP client config (Claude Desktop, Claude Code, etc.) and call `get_dataset_info` first to verify data freshness and retrieve the required citation.

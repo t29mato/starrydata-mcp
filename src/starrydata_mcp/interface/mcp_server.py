@@ -14,6 +14,8 @@ from __future__ import annotations
 from pathlib import Path
 
 from mcp.server.mcpserver import MCPServer
+from starlette.requests import Request
+from starlette.responses import JSONResponse
 
 from starrydata_mcp.application.dto import (
     CurveDataDTO,
@@ -45,11 +47,15 @@ from starrydata_mcp.infrastructure.duckdb.sample_repository import DuckDBSampleR
 SERVER_INSTRUCTIONS = (
     "Tools for searching Starrydata, an open database of materials-science "
     "property data digitized from published papers (thermoelectric, battery, "
-    "magnetic, and dielectric materials). Call get_dataset_info first to learn "
+    "magnetic, and dielectric materials). This server is read-only: no tool "
+    "here writes back to Starrydata or anywhere else, and the data is a "
+    "locally-cached public snapshot (CC BY 4.0), not a live connection to "
+    "Starrydata's production systems. Call get_dataset_info first to learn "
     "the data's snapshot date, license, and citation. Then search top-down: "
     "search_materials or search_curves to find candidates (lightweight "
     "summaries only), then get_sample_detail or get_curve_data to fetch the "
-    "full details/data points for the ones you actually need."
+    "full details/data points for the ones you actually need. If this is a "
+    "shared public deployment, requests may be rate-limited per client."
 )
 
 
@@ -231,5 +237,35 @@ def build_server(db_path: Path) -> MCPServer:
     )
     def get_dataset_info() -> DatasetInfoDTO:
         return get_dataset_info_uc.execute()
+
+    @server.custom_route("/health", methods=["GET"])
+    async def health(_request: Request) -> JSONResponse:
+        """Liveness/readiness probe for HTTP deployments (e.g. HF Spaces).
+
+        Confirms the local DuckDB file is actually queryable, not just that
+        the process is up — a container that started but never ran `ingest`
+        (or has a corrupt DB) should report unhealthy, not a bare 200.
+        """
+        try:
+            info = get_dataset_info_uc.execute()
+        except Exception as exc:  # noqa: BLE001 - report any failure, don't leak a 500 with no context
+            return JSONResponse(
+                {"status": "unhealthy", "error": str(exc)},
+                status_code=503,
+            )
+        return JSONResponse(
+            {
+                "status": "ok",
+                "read_only": True,
+                "data_source": "Starrydata2 public dataset (CC BY 4.0)",
+                "db_snapshot": info.db_snapshot.isoformat() if info.db_snapshot else None,
+                "is_stale": info.is_stale,
+                "totals": {
+                    "papers": info.papers,
+                    "samples": info.samples,
+                    "curves": info.curves,
+                },
+            }
+        )
 
     return server

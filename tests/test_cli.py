@@ -161,6 +161,57 @@ def test_serve_wires_build_server_and_runs_stdio(monkeypatch, tmp_path: Path) ->
     assert calls["transport"] == "stdio"
 
 
+def test_parse_http_addr_bare_colon_port() -> None:
+    assert cli._parse_http_addr(":7860") == ("0.0.0.0", 7860)
+
+
+def test_parse_http_addr_explicit_host() -> None:
+    assert cli._parse_http_addr("127.0.0.1:9000") == ("127.0.0.1", 9000)
+
+
+def test_parse_http_addr_bare_port_defaults_host() -> None:
+    assert cli._parse_http_addr("7860") == ("0.0.0.0", 7860)
+
+
+def test_serve_http_wires_rate_limited_streamable_http_app_into_uvicorn(
+    monkeypatch, tmp_path: Path
+) -> None:
+    import uvicorn
+
+    from starrydata_mcp.interface.rate_limit import RateLimitMiddleware
+
+    cache_dir = tmp_path / "cache"
+    cache_dir.mkdir()
+    db_path = cache_dir / "starrydata.duckdb"
+    db_path.write_bytes(b"")
+    monkeypatch.setenv("STARRYDATA_MCP_CACHE_DIR", str(cache_dir))
+
+    sentinel_app = object()
+
+    class FakeServer:
+        def streamable_http_app(self, **kwargs: object) -> object:
+            return sentinel_app
+
+    monkeypatch.setattr(
+        "starrydata_mcp.interface.mcp_server.build_server", lambda path: FakeServer()
+    )
+
+    calls: dict[str, object] = {}
+    monkeypatch.setattr(
+        uvicorn,
+        "run",
+        lambda app, **kwargs: calls.update(app=app, **kwargs),
+    )
+
+    result = runner.invoke(cli.app, ["serve", "--http", "127.0.0.1:9001"])
+    assert result.exit_code == 0
+    assert calls["host"] == "127.0.0.1"
+    assert calls["port"] == 9001
+    assert isinstance(calls["app"], RateLimitMiddleware)
+    assert calls["app"]._app is sentinel_app  # the fake server's app, not double-wrapped
+    assert "9001" in result.output
+
+
 def test_running_as_main_module_invokes_the_typer_app() -> None:
     # Covers `def main()` and the `if __name__ == "__main__"` guard, which
     # only run when the module is executed directly (`python -m ...`) —

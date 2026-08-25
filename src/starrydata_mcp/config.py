@@ -17,3 +17,16 @@ def cache_dir() -> Path:
 
 def db_path() -> Path:
     return cache_dir() / "starrydata.duckdb"
+
+
+def rate_limit_max_requests() -> int:
+    """Max requests per client IP per window, for `serve --http` deployments.
+
+    Tunable without a code change (e.g. on the HF Spaces free tier) since
+    the right number depends on expected traffic, not on the code.
+    """
+    return int(os.environ.get("STARRYDATA_MCP_RATE_LIMIT_MAX", "60"))
+
+
+def rate_limit_window_seconds() -> float:
+    return float(os.environ.get("STARRYDATA_MCP_RATE_LIMIT_WINDOW_SECONDS", "60"))

@@ -1254,7 +1254,9 @@ dependencies = [
     { name = "httpx" },
     { name = "mcp" },
     { name = "pydantic" },
+    { name = "starlette" },
     { name = "typer" },
+    { name = "uvicorn" },
 ]
 
 [package.dev-dependencies]
@@ -1274,7 +1276,9 @@ requires-dist = [
     { name = "httpx", specifier = ">=0.27" },
     { name = "mcp", specifier = ">=1.9.0" },
     { name = "pydantic", specifier = ">=2.7" },
+    { name = "starlette", specifier = ">=0.37" },
     { name = "typer", specifier = ">=0.12" },
+    { name = "uvicorn", specifier = ">=0.27" },
 ]
 
 [package.metadata.requires-dev]

@@ -20,6 +20,17 @@ from .infrastructure.ingestion.pipeline import IngestAlreadyRunningError, run_in
 app = typer.Typer(add_completion=False, no_args_is_help=True)
 
 
+def _parse_http_addr(addr: str) -> tuple[str, int]:
+    """`":7860"` -> `("0.0.0.0", 7860)`; `"127.0.0.1:9000"` -> that pair;
+    `"7860"` (bare port) -> `("0.0.0.0", 7860)`."""
+    if ":" in addr:
+        host, _, port_str = addr.rpartition(":")
+        host = host or "0.0.0.0"
+    else:
+        host, port_str = "0.0.0.0", addr
+    return host, int(port_str)
+
+
 @app.command()
 def ingest(
     force: bool = typer.Option(False, help="Rebuild even if the snapshot is unchanged."),
@@ -73,8 +84,20 @@ def ingest(
 
 
 @app.command()
-def serve() -> None:
-    """Start the MCP server (stdio) against the local DuckDB file.
+def serve(
+    http: str | None = typer.Option(
+        None,
+        "--http",
+        metavar="[HOST]:PORT",
+        help=(
+            'Serve over streamable-HTTP instead of stdio, e.g. "--http :7860" '
+            "(all interfaces, port 7860 — the Hugging Face Spaces convention) or "
+            '"--http 127.0.0.1:9000". Omit for stdio (default; for local clients '
+            "like Claude Desktop/Code that spawn this process directly)."
+        ),
+    ),
+) -> None:
+    """Start the MCP server against the local DuckDB file (stdio by default).
 
     Run `starrydata-mcp ingest` first if `~/.cache/starrydata-mcp/starrydata.duckdb`
     doesn't exist yet.
@@ -88,7 +111,31 @@ def serve() -> None:
 
     from .interface.mcp_server import build_server
 
-    build_server(config.db_path()).run("stdio")
+    server = build_server(config.db_path())
+
+    if http is None:
+        server.run("stdio")
+        return
+
+    import uvicorn
+
+    from .interface.rate_limit import RateLimitMiddleware
+
+    host, port = _parse_http_addr(http)
+    # stateless_http=True: no server-side session state between requests.
+    # Right choice for a single-container public deployment (e.g. HF
+    # Spaces) — no session affinity to worry about if the platform restarts
+    # or fronts this with a load balancer later.
+    asgi_app = RateLimitMiddleware(
+        server.streamable_http_app(stateless_http=True),
+        max_requests=config.rate_limit_max_requests(),
+        window_seconds=config.rate_limit_window_seconds(),
+    )
+    typer.echo(
+        f"Serving streamable-HTTP on http://{host}:{port} "
+        "(MCP endpoint: /mcp, health check: /health)"
+    )
+    uvicorn.run(asgi_app, host=host, port=port, log_level="info")
 
 
 def main() -> None:  # pragma: no cover
