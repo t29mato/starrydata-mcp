@@ -12,7 +12,7 @@ TABLES_DDL = """
 -- 10.1103/physrevb.69.045107). Likely an upstream data-entry artifact; not
 -- something this project can correct. `get_by_sid` picks one deterministic
 -- row (see paper_repository.py) rather than crashing or guessing which is
--- "right" — flagged for HQ in docs/design/architecture.md §5.
+-- "right" — see the open questions in docs/design/architecture.md §5.
 CREATE TABLE papers (
     sid VARCHAR,
     doi VARCHAR,
